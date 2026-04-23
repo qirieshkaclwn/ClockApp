@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -41,6 +42,9 @@ import java.util.UUID
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.annotation.RequiresPermission
+
+import android.provider.Settings
+import androidx.core.app.NotificationManagerCompat
 
 class MainActivity : ComponentActivity() {
 
@@ -81,13 +85,31 @@ class MainActivity : ComponentActivity() {
                             val isConnected = this.checkVpn()
                             Toast.makeText(this, if (isConnected) "VPN подключен" else "VPN отключен", Toast.LENGTH_SHORT).show()
                         },
+                        onGetMediaClick = {
+                            val (track, artist, isPlaying) = getCurrentMediaInfo()
+                            val message = if (track.isEmpty()) {
+                                "Медиа отсутствует"
+                            } else {
+                                val statusIcon = if (isPlaying) "Вопроизводится" else "Пауза"
+                                "$artist - $track, $statusIcon"
+                            }
+
+                            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                        },
                         isConnected = ConnectionState.isConnected
                     )
                 }
             }
         }
+        requestNotificationPermission()
     }
 
+    private fun requestNotificationPermission() {
+        if (!NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)) {
+            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+            startActivity(intent)
+        }
+    }
     private fun checkPermissionsAndConnect() {
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(
@@ -119,6 +141,14 @@ class MainActivity : ComponentActivity() {
         val activeNetwork = connectivityManager.activeNetwork
         val networkCapabilities = connectivityManager.getNetworkCapabilities(activeNetwork)
         return networkCapabilities?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+    }
+
+    fun getCurrentMediaInfo(): Triple<String, String, Boolean> {
+        return Triple(
+            MediaNotificationListener.currentTrack,
+            MediaNotificationListener.currentArtist,
+            MediaNotificationListener.isPlaying
+        )
     }
 
     private fun connectToDevice() {
@@ -213,6 +243,7 @@ fun BleControlScreen(
     onConnectClick: () -> Unit,
     onSendTimeClick: () -> Unit,
     onCheckVpnClick: () -> Unit,
+    onGetMediaClick: () -> Unit,
     isConnected: Boolean
 ) {
     Column(
@@ -241,6 +272,11 @@ fun BleControlScreen(
             onClick = onCheckVpnClick,
         ) {
             Text("Статус подключения к VPN")
+        }
+        Button(
+            onClick = onGetMediaClick,
+        ) {
+            Text("Сведения о медиа")
         }
 
         if (isConnected) {
